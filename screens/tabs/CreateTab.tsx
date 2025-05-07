@@ -1,70 +1,90 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
+import React, {useState, useEffect} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
   ScrollView,
   Alert,
   Platform,
   Image,
   FlatList,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-
-type VotingDuration = '12h' | '24h' | '48h' | '72h' | '7d';
+import {useAppContext, VotingDuration, AppUser} from '../../context/AppContext';
 
 interface ContestFormData {
   title: string;
   description: string;
   images: string[];
   votingDuration: VotingDuration | null;
+  invitees: {
+    appUsers: AppUser[];
+    phoneNumbers: string[];
+  };
 }
+
+// Sample app users for testing
+const sampleAppUsers: AppUser[] = [
+  {
+    id: '1',
+    username: 'photo_lover',
+    avatar: 'https://picsum.photos/id/1062/100/100',
+  },
+  {
+    id: '2',
+    username: 'creative_eye',
+    avatar: 'https://picsum.photos/id/1005/100/100',
+  },
+  {
+    id: '3',
+    username: 'snap_master',
+    avatar: 'https://picsum.photos/id/1025/100/100',
+  },
+  {
+    id: '4',
+    username: 'camera_pro',
+    avatar: 'https://picsum.photos/id/1012/100/100',
+  },
+  {
+    id: '5',
+    username: 'lens_guru',
+    avatar: 'https://picsum.photos/id/1074/100/100',
+  },
+];
 
 const CreateTab = () => {
   const [formData, setFormData] = useState<ContestFormData>({
     title: '',
     description: '',
     images: [],
-    votingDuration: null
+    votingDuration: null,
+    invitees: {
+      appUsers: [],
+      phoneNumbers: [],
+    },
   });
 
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 2;
+  const totalSteps = 3;
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState<{[id: string]: boolean}>(
+    {},
+  );
+  const [isLoading, setIsLoading] = useState(false);
 
   const updateField = (field: keyof ContestFormData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const validateStep1 = () => {
-    if (!formData.title.trim()) {
-      Alert.alert('Error', 'Contest title is required');
-      return false;
-    }
-    if (!formData.description.trim()) {
-      Alert.alert('Error', 'Contest description is required');
-      return false;
-    }
-    if (formData.images.length === 0) {
-      Alert.alert('Error', 'Please upload at least one image');
-      return false;
-    }
-    return true;
-  };
-
-  const validateStep2 = () => {
-    if (!formData.votingDuration) {
-      Alert.alert('Error', 'Please select a voting duration');
-      return false;
-    }
-    return true;
+    setFormData(prev => ({...prev, [field]: value}));
   };
 
   const goToNextStep = () => {
-    if (currentStep === 1 && validateStep1()) {
+    if (currentStep === 1) {
       setCurrentStep(2);
+    } else if (currentStep === 2) {
+      setCurrentStep(3);
     }
   };
 
@@ -75,227 +95,360 @@ const CreateTab = () => {
   };
 
   const handleAddImage = () => {
-    // In a real app, this would open an image picker
     Alert.alert(
-      "Upload Image", 
-      "In a complete implementation, this would open your camera or photo gallery.",
+      'Upload Image',
+      'In a complete implementation, this would open your camera or photo gallery.',
       [
         {
-          text: "Simulate Upload",
+          text: 'Simulate Upload',
           onPress: () => {
-            // Simulate uploading by setting a sample image URL
-            const newImage = `https://picsum.photos/id/${Math.floor(Math.random() * 100)}/500/300`;
+            const newImage = `https://picsum.photos/id/${Math.floor(
+              Math.random() * 100,
+            )}/500/300`;
             updateField('images', [...formData.images, newImage]);
-          }
+          },
         },
         {
-          text: "Cancel",
-          style: "cancel"
-        }
-      ]
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
     );
   };
-  
-  const handleRemoveImage = (index: number) => {
-    const updatedImages = [...formData.images];
-    updatedImages.splice(index, 1);
-    updateField('images', updatedImages);
+
+  const toggleUserSelection = (userId: string) => {
+    const newSelection = {...selectedUsers};
+    newSelection[userId] = !newSelection[userId];
+    setSelectedUsers(newSelection);
+
+    const selectedAppUsers = sampleAppUsers.filter(
+      user => newSelection[user.id],
+    );
+    updateField('invitees', {
+      ...formData.invitees,
+      appUsers: selectedAppUsers,
+    });
   };
 
-  const createContest = () => {
-    if (validateStep2()) {
-      // In a real app, would submit to a backend
-      Alert.alert(
-        'Success!',
-        `Contest "${formData.title}" created successfully! It will be open for voting for ${formData.votingDuration}.`,
-        [
+  // Get context functions
+  const {addContest, addInvitations} = useAppContext();
+
+  const finalizeContest = async () => {
+    try {
+      // Validation
+      if (!formData.title.trim()) {
+        Alert.alert('Error', 'Please enter a contest title');
+        return;
+      }
+
+      if (!formData.description.trim()) {
+        Alert.alert('Error', 'Please enter a contest description');
+        return;
+      }
+
+      if (formData.images.length === 0) {
+        Alert.alert('Error', 'Please add at least one image');
+        return;
+      }
+
+      if (!formData.votingDuration) {
+        Alert.alert('Error', 'Please select a voting duration');
+        return;
+      }
+
+      setIsLoading(true);
+
+      // Create new contest
+      const newContest = {
+        title: formData.title,
+        description: formData.description,
+        images: formData.images,
+        votingDuration: formData.votingDuration as VotingDuration,
+        creator: 'current_user', // In a real app, get this from auth
+        timestamp: 'Just now',
+        likes: 0,
+        liked: false,
+        comments: [],
+      };
+
+      // Add contest to context - this will call the API
+      const createdContest = await addContest(newContest);
+
+      // Create invitations for selected users
+      if (formData.invitees.appUsers.length > 0) {
+        // Add invitations to context with contestId and invitees
+        await addInvitations(
           {
-            text: 'OK',
-            onPress: () => {
-              // Reset form
-              setFormData({
-                title: '',
-                description: '',
-                images: [],
-                votingDuration: null
-              });
-              setCurrentStep(1);
-            }
-          }
-        ]
-      );
+            appUsers: formData.invitees.appUsers,
+            phoneNumbers: formData.invitees.phoneNumbers,
+          },
+          createdContest.id,
+        );
+      }
+
+      // Simulate API call - will be replaced with real API calls
+      setTimeout(() => {
+        setIsLoading(false);
+
+        Alert.alert(
+          'Success!',
+          `Contest "${formData.title}" created successfully!`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Reset form
+                setFormData({
+                  title: '',
+                  description: '',
+                  images: [],
+                  votingDuration: null,
+                  invitees: {
+                    appUsers: [],
+                    phoneNumbers: [],
+                  },
+                });
+                setSelectedUsers({});
+                setCurrentStep(1);
+              },
+            },
+          ],
+        );
+      }, 1500);
+    } catch (error) {
+      setIsLoading(false);
+      Alert.alert('Error', 'Failed to create contest. Please try again.');
     }
   };
 
-  const renderStep1 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.sectionTitle}>Contest Basics</Text>
-      
-      <Text style={styles.inputLabel}>Contest Title</Text>
-      <TextInput
-        style={styles.textInput}
-        placeholder="Enter a catchy title"
-        value={formData.title}
-        onChangeText={(value) => updateField('title', value)}
-      />
-      
-      <Text style={styles.inputLabel}>Description</Text>
-      <TextInput
-        style={[styles.textInput, styles.textArea]}
-        placeholder="What is this contest about?"
-        value={formData.description}
-        onChangeText={(value) => updateField('description', value)}
-        multiline={true}
-        numberOfLines={4}
-      />
-      
-      <Text style={styles.inputLabel}>Images</Text>
-      <Text style={styles.helperText}>Upload multiple images for your contest</Text>
-      
-      {formData.images.length > 0 && (
-        <FlatList
-          data={formData.images}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(_, index) => index.toString()}
-          contentContainerStyle={styles.imageList}
-          renderItem={({ item, index }) => (
-            <View style={styles.imageContainer}>
-              <Image
-                source={{ uri: item }}
-                style={styles.thumbnail}
-              />
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => handleRemoveImage(index)}
-              >
-                <Icon name="close-circle" size={24} color="#F44336" />
-              </TouchableOpacity>
-            </View>
-          )}
-        />
-      )}
-      
-      <TouchableOpacity 
-        style={styles.uploadButton} 
-        onPress={handleAddImage}
-      >
-        <Icon name="image-plus" size={24} color="#666" />
-        <Text style={styles.uploadButtonText}>
-          {formData.images.length === 0 
-            ? "Upload Images" 
-            : "Add More Images"}
-        </Text>
-      </TouchableOpacity>
-      
-      <View style={styles.navigationButtons}>
-        <View style={styles.placeholder} />
-        <TouchableOpacity
-          style={styles.nextButton}
-          onPress={goToNextStep}
-        >
-          <Text style={styles.buttonText}>Continue</Text>
-          <Icon name="arrow-right" size={16} color="#fff" />
-        </TouchableOpacity>
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text style={styles.loadingText}>Creating contest...</Text>
       </View>
-    </View>
-  );
-
-  const renderStep2 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.sectionTitle}>Voting Duration</Text>
-      
-      <Text style={styles.instructionText}>
-        Select how long the voting period should last after the contest closes for submissions:
-      </Text>
-      
-      <View style={styles.durationOptions}>
-        {[
-          { value: '12h', label: '12 Hours' },
-          { value: '24h', label: '24 Hours' },
-          { value: '48h', label: '48 Hours' },
-          { value: '72h', label: '72 Hours' },
-          { value: '7d', label: '7 Days' }
-        ].map(option => (
-          <TouchableOpacity 
-            key={option.value}
-            style={[
-              styles.durationOption,
-              formData.votingDuration === option.value && styles.selectedDuration
-            ]}
-            onPress={() => updateField('votingDuration', option.value as VotingDuration)}
-          >
-            <Text 
-              style={[
-                styles.durationText,
-                formData.votingDuration === option.value && styles.selectedDurationText
-              ]}
-            >
-              {option.label}
-            </Text>
-            {formData.votingDuration === option.value && (
-              <Icon name="check-circle" size={20} color="#fff" style={styles.checkIcon} />
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      <View style={styles.navigationButtons}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={goToPrevStep}
-        >
-          <Icon name="arrow-left" size={16} color="#333" />
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={createContest}
-        >
-          <Icon name="check" size={16} color="#fff" />
-          <Text style={styles.buttonText}>Create Contest</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+    );
+  }
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={100}
-    >
+      keyboardVerticalOffset={100}>
       <View style={styles.header}>
         <Icon name="plus-circle" size={22} color="#4CAF50" />
         <Text style={styles.title}>Create Contest</Text>
       </View>
-      
-      {/* Step Indicator */}
+
       <View style={styles.stepIndicator}>
-        {Array.from({ length: totalSteps }).map((_, index) => (
+        {Array.from({length: totalSteps}).map((_, index) => (
           <View
             key={index}
             style={[
               styles.stepDot,
-              currentStep >= index + 1 && styles.activeStepDot
+              currentStep >= index + 1 && styles.activeStepDot,
             ]}
           />
         ))}
       </View>
-      
-      <ScrollView 
-        style={styles.scrollContainer} 
-        contentContainerStyle={styles.scrollContent}
-      >
-        {currentStep === 1 ? renderStep1() : renderStep2()}
+
+      <ScrollView style={styles.scrollContainer}>
+        {currentStep === 1 ? (
+          <View style={styles.stepContainer}>
+            <Text style={styles.sectionTitle}>Contest Basics</Text>
+
+            <Text style={styles.inputLabel}>Title</Text>
+            <TextInput
+              style={styles.textInput}
+              value={formData.title}
+              onChangeText={value => updateField('title', value)}
+              placeholder="Enter contest title"
+            />
+
+            <Text style={styles.inputLabel}>Description</Text>
+            <TextInput
+              style={[styles.textInput, {minHeight: 100}]}
+              value={formData.description}
+              onChangeText={value => updateField('description', value)}
+              placeholder="Describe your contest"
+              multiline
+            />
+
+            <Text style={styles.inputLabel}>Images</Text>
+            {formData.images.length > 0 && (
+              <FlatList
+                horizontal
+                data={formData.images}
+                keyExtractor={(_, index) => index.toString()}
+                renderItem={({item}) => (
+                  <Image source={{uri: item}} style={styles.thumbnail} />
+                )}
+              />
+            )}
+
+            <TouchableOpacity style={styles.button} onPress={handleAddImage}>
+              <Text style={styles.buttonText}>Add Image</Text>
+            </TouchableOpacity>
+
+            <View style={styles.navigationButtons}>
+              <View style={{width: 80}} />
+              <TouchableOpacity
+                style={styles.nextButton}
+                onPress={goToNextStep}>
+                <Text style={styles.buttonText}>Next</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : currentStep === 2 ? (
+          <View style={styles.stepContainer}>
+            <Text style={styles.sectionTitle}>Voting Duration</Text>
+
+            <View>
+              {(['12h', '24h', '48h', '72h', '7d'] as VotingDuration[]).map(
+                duration => (
+                  <TouchableOpacity
+                    key={duration}
+                    style={[
+                      styles.durationOption,
+                      formData.votingDuration === duration &&
+                        styles.selectedDuration,
+                    ]}
+                    onPress={() => updateField('votingDuration', duration)}>
+                    <Text style={styles.durationText}>
+                      {duration === '7d' ? '7 Days' : duration}
+                    </Text>
+                  </TouchableOpacity>
+                ),
+              )}
+            </View>
+
+            <View style={styles.navigationButtons}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={goToPrevStep}>
+                <Text style={styles.buttonText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.nextButton}
+                onPress={goToNextStep}>
+                <Text style={styles.buttonText}>Next</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.stepContainer}>
+            <Text style={styles.sectionTitle}>Invite Participants</Text>
+
+            <Text style={styles.inviteDescription}>
+              Choose how you would like to invite participants
+            </Text>
+
+            <View style={styles.inviteOptionsContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.inviteOption,
+                  Object.values(selectedUsers).some(v => v) &&
+                    styles.selectedInviteOption,
+                ]}
+                onPress={() => {
+                  // Handle app users invitation
+                }}>
+                <Icon name="account-group" size={28} color="#4CAF50" />
+                <Text style={styles.inviteOptionText}>App Users</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.inviteOption}
+                onPress={() => {
+                  // Handle WhatsApp invitation
+                  Alert.alert(
+                    'WhatsApp Invitation',
+                    'This would open WhatsApp to invite people.',
+                  );
+                }}>
+                <Icon name="whatsapp" size={28} color="#25D366" />
+                <Text style={styles.inviteOptionText}>WhatsApp</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.inviteOption}
+                onPress={() => {
+                  // Handle text message invitation
+                  Alert.alert(
+                    'Text Message',
+                    'This would send invitations via SMS.',
+                  );
+                }}>
+                <Icon name="message-text" size={28} color="#9C27B0" />
+                <Text style={styles.inviteOptionText}>Text Message</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.inviteOption}
+                onPress={() => {
+                  // Handle other sharing methods
+                  Alert.alert('Share', 'This would open sharing options.');
+                }}>
+                <Icon name="share-variant" size={28} color="#FF9800" />
+                <Text style={styles.inviteOptionText}>Other</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.appUsersContainer}>
+              <Text style={styles.subSectionTitle}>App Users</Text>
+              <FlatList
+                data={sampleAppUsers}
+                keyExtractor={item => item.id}
+                renderItem={({item}) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.userItemEnhanced,
+                      selectedUsers[item.id] && styles.selectedUserItemEnhanced,
+                    ]}
+                    onPress={() => toggleUserSelection(item.id)}>
+                    <Image
+                      source={{uri: item.avatar}}
+                      style={styles.userAvatar}
+                    />
+                    <View style={styles.userInfo}>
+                      <Text style={styles.userName}>{item.username}</Text>
+                    </View>
+                    {selectedUsers[item.id] ? (
+                      <Icon name="check-circle" size={24} color="#4CAF50" />
+                    ) : (
+                      <Icon
+                        name="checkbox-blank-circle-outline"
+                        size={24}
+                        color="#ddd"
+                      />
+                    )}
+                  </TouchableOpacity>
+                )}
+                style={styles.usersList}
+              />
+            </View>
+
+            <View style={styles.navigationButtons}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={goToPrevStep}>
+                <Text style={styles.buttonText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.createButton}
+                onPress={finalizeContest}>
+                <Text style={styles.buttonText}>Create Contest</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
     backgroundColor: '#f9f9f9',
   },
@@ -306,17 +459,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#efefef',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    elevation: 3,
   },
   title: {
     fontSize: 18,
@@ -343,26 +486,12 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
   },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 30,
-  },
   stepContainer: {
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 16,
-    marginVertical: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    margin: 16,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 18,
@@ -370,15 +499,17 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 16,
   },
+  subSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#555',
+    marginTop: 16,
+    marginBottom: 8,
+  },
   inputLabel: {
     fontSize: 14,
     color: '#555',
     marginBottom: 6,
-  },
-  helperText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 12,
   },
   textInput: {
     borderWidth: 1,
@@ -389,81 +520,23 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#fafafa',
   },
-  textArea: {
-    minHeight: 100,
-    textAlignVertical: 'top',
+  button: {
+    backgroundColor: '#4CAF50',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
   },
-  imageList: {
-    paddingVertical: 10,
-  },
-  imageContainer: {
-    marginRight: 10,
-    position: 'relative',
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
   thumbnail: {
     width: 120,
     height: 120,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  removeButton: {
-    position: 'absolute',
-    top: -10,
-    right: -10,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-  },
-  uploadButton: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 16,
-    backgroundColor: '#f9f9f9',
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  uploadButtonText: {
-    color: '#666',
-    marginLeft: 8,
-  },
-  instructionText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  durationOptions: {
-    marginBottom: 20,
-  },
-  durationOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    marginBottom: 8,
-    backgroundColor: '#f9f9f9',
-  },
-  selectedDuration: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
-  },
-  durationText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '600',
-  },
-  selectedDurationText: {
-    color: '#fff',
-  },
-  checkIcon: {
-    marginLeft: 10,
+    marginRight: 8,
   },
   navigationButtons: {
     flexDirection: 'row',
@@ -471,44 +544,115 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   nextButton: {
-    flexDirection: 'row',
     backgroundColor: '#4CAF50',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     borderRadius: 8,
     alignItems: 'center',
   },
   backButton: {
-    flexDirection: 'row',
+    backgroundColor: '#757575',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     borderRadius: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    backgroundColor: '#fff',
   },
   createButton: {
-    flexDirection: 'row',
     backgroundColor: '#4CAF50',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     borderRadius: 8,
     alignItems: 'center',
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginHorizontal: 6,
+  durationOption: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 8,
   },
-  backButtonText: {
+  durationText: {
+    fontSize: 16,
     color: '#333',
-    fontWeight: 'bold',
-    marginHorizontal: 6,
   },
-  placeholder: {
-    width: 70,
-  }
+  selectedDuration: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#333',
+  },
+  inviteDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+  },
+  inviteOptionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  inviteOption: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '22%',
+    paddingVertical: 16,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  inviteOptionText: {
+    marginTop: 8,
+    fontWeight: '500',
+    fontSize: 12,
+    color: '#555',
+  },
+  selectedInviteOption: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#E8F5E9',
+  },
+  appUsersContainer: {
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  userItemEnhanced: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  selectedUserItemEnhanced: {
+    backgroundColor: '#E8F5E9',
+  },
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  usersList: {
+    maxHeight: 300,
+  },
 });
 
+// Export the component as default
 export default CreateTab;

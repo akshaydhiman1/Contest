@@ -1,15 +1,16 @@
 import React from 'react';
-import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { StatusBar, StyleSheet } from 'react-native';
+import {NavigationContainer, DefaultTheme} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import {StatusBar, StyleSheet} from 'react-native';
 import HomeScreen from './screens/HomeScreen';
 import OTPScreen from './screens/OTPScreen';
 import MainTabs from './screens/MainTabs';
-import { colors, typography, getShadow, elevation } from './theme/theme';
+import {colors, typography, getShadow, elevation} from './theme/theme';
+import {AppProvider} from './context/AppContext';
 
 export type RootStackParamList = {
   Home: undefined;
-  OTP: { phoneNumber: string };
+  OTP: {phoneNumber: string};
   Main: undefined;
 };
 
@@ -31,13 +32,10 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const App = () => {
   return (
-    <>
-      <StatusBar 
-        backgroundColor={colors.white} 
-        barStyle="dark-content" 
-      />
+    <AppProvider>
+      <StatusBar backgroundColor={colors.white} barStyle="dark-content" />
       <NavigationContainer theme={AppTheme}>
-        <Stack.Navigator 
+        <Stack.Navigator
           initialRouteName="Home"
           screenOptions={{
             headerTitleStyle: {
@@ -54,19 +52,18 @@ const App = () => {
               backgroundColor: colors.background,
             },
             headerShadowVisible: false, // We'll use our own shadow
-          }}
-        >
-          <Stack.Screen 
-            name="Home" 
-            component={HomeScreen} 
+          }}>
+          <Stack.Screen
+            name="Home"
+            component={HomeScreen}
             options={{
               title: 'Sign In',
               animation: 'slide_from_right',
             }}
           />
-          <Stack.Screen 
-            name="OTP" 
-            component={OTPScreen} 
+          <Stack.Screen
+            name="OTP"
+            component={OTPScreen}
             options={{
               title: 'Verification',
               animation: 'slide_from_right',
@@ -75,14 +72,14 @@ const App = () => {
           <Stack.Screen
             name="Main"
             component={MainTabs}
-            options={{ 
+            options={{
               headerShown: false,
               animation: 'fade',
             }}
           />
         </Stack.Navigator>
       </NavigationContainer>
-    </>
+    </AppProvider>
   );
 };
 

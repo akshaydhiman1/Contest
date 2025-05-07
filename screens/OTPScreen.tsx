@@ -1,36 +1,79 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import React, {useState, useEffect} from 'react';
+import {View, StyleSheet, Text, Alert} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../App';
+import {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {RootStackParamList} from '../App';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { colors, typography, spacing, roundness, getCardStyle } from '../theme/theme';
+import {
+  colors,
+  typography,
+  spacing,
+  roundness,
+  getCardStyle,
+} from '../theme/theme';
+import axios from 'axios';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OTP'>;
 
-const OTPScreen = ({ route, navigation }: Props) => {
-  const { phoneNumber } = route.params;
+const OTPScreen = ({route, navigation}: Props) => {
+  const {phoneNumber} = route.params;
   const [otp, setOtp] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate OTP sent
-    console.log(`Simulating OTP sent to ${phoneNumber}`);
+    const fetchOTP = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/users');
+        const user = response.data.data.find(
+          (user: any) => user.phone_number === phoneNumber,
+        );
+        if (user) {
+          setOtp(user.otp);
+        } else {
+          setError('User not found.');
+        }
+      } catch (err) {
+        console.error('Error fetching OTP:', err);
+        setError('Failed to fetch OTP. Please try again later.');
+      }
+    };
+
+    fetchOTP();
   }, [phoneNumber]);
 
-  const handleVerifyOTP = () => {
-    navigation.replace('Main');
+  const handleVerifyOTP = async () => {
+    try {
+      const response = await axios.post(
+        'http://localhost:5000/api/verify-otp',
+        {
+          phone_number: phoneNumber,
+          otp,
+        },
+      );
+
+      if (response.data.success) {
+        setError(null);
+        navigation.replace('Main');
+      } else {
+        setError(response.data.message);
+      }
+    } catch (err) {
+      console.error('Error verifying OTP:', err);
+      setError('Failed to verify OTP. Please try again later.');
+    }
   };
 
   return (
     <LinearGradient
       colors={[colors.secondaryLight, colors.secondaryDark]}
-      style={styles.background}
-    >
+      style={styles.background}>
       <View style={styles.screen}>
         <View style={styles.card}>
           <Text style={styles.title}>Enter OTP</Text>
-          <Text style={styles.subtitle}>A verification code has been sent to {phoneNumber}</Text>
+          <Text style={styles.subtitle}>
+            A verification code has been sent to {phoneNumber}
+          </Text>
           <Input
             placeholder="Enter OTP"
             keyboardType="number-pad"
@@ -38,6 +81,8 @@ const OTPScreen = ({ route, navigation }: Props) => {
             onChangeText={setOtp}
             containerStyle={styles.inputContainer}
           />
+          {error && <Text style={styles.errorText}>{error}</Text>}
+
           <Button
             title="Verify OTP"
             onPress={handleVerifyOTP}
@@ -84,6 +129,12 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     marginBottom: spacing.regular,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: typography.fontSizeSmall,
+    textAlign: 'center',
+    marginBottom: spacing.small,
   },
   button: {
     marginTop: spacing.small,

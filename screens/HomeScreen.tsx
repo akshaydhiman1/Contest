@@ -1,31 +1,66 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import React, {useState} from 'react';
+import {View, StyleSheet, Text, Alert} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../App';
+import {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {RootStackParamList} from '../App';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { colors, typography, spacing, roundness, getCardStyle } from '../theme/theme';
+import {
+  colors,
+  typography,
+  spacing,
+  roundness,
+  getCardStyle,
+} from '../theme/theme';
+import axios from 'axios';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
-const HomeScreen = ({ navigation }: Props) => {
+const HomeScreen = ({navigation}: Props) => {
   const [phone, setPhone] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const handleSendOTP = () => {
-    navigation.navigate('OTP', { phoneNumber: phone });
+    // Basic validation
+    if (phone.length < 10) {
+      setError('Please enter a valid phone number');
+      return;
+    }
+
+    handleVerifyPhone();
+  };
+
+  const handleVerifyPhone = async () => {
+    try {
+      const response = await axios.post(
+        'http://localhost:5000/api/verify-phone',
+        {
+          phone_number: phone,
+        },
+      );
+
+      if (response.data.success) {
+        setError(null);
+        navigation.navigate('OTP', {phoneNumber: phone});
+      } else {
+        setError(response.data.message);
+      }
+    } catch (err) {
+      console.error('Error verifying phone number:', err);
+      setError('Failed to verify phone number. Please try again later.');
+    }
   };
 
   return (
     <LinearGradient
       colors={[colors.primaryLight, colors.primaryDark]}
-      style={styles.background}
-    >
+      style={styles.background}>
       <View style={styles.screen}>
         <View style={styles.card}>
           <Text style={styles.label}>Enter Phone Number</Text>
+          {error && <Text style={styles.errorText}>{error}</Text>}
           <Input
-            placeholder="e.g. 1234567890"
+            placeholder="Enter Phone Number"
             keyboardType="phone-pad"
             value={phone}
             onChangeText={setPhone}
@@ -72,9 +107,21 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: spacing.regular,
   },
+  errorText: {
+    color: colors.error,
+    fontSize: typography.fontSizeSmall,
+    textAlign: 'center',
+    marginBottom: spacing.small,
+  },
   button: {
     marginTop: spacing.medium,
     borderRadius: roundness.large,
+  },
+  phoneNumber: {
+    fontSize: typography.fontSizeLarge,
+    color: colors.primary,
+    marginVertical: spacing.small,
+    textAlign: 'center',
   },
 });
 
