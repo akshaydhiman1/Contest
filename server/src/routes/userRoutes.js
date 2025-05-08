@@ -5,7 +5,7 @@ const User = require('../models/User');
 // Route to fetch all users
 router.get('/users', async (req, res) => {
   try {
-    const users = await User.find({}, '_id phone_number otp filterid');
+    const users = await User.find({}, '_id phone otp');
     res.status(200).json({success: true, data: users});
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -15,10 +15,10 @@ router.get('/users', async (req, res) => {
 
 // Route to verify phone number and OTP
 router.post('/verify-otp', async (req, res) => {
-  const {phone_number, otp} = req.body;
+  const {phone, otp} = req.body;
 
   try {
-    const user = await User.findOne({phone_number, otp});
+    const user = await User.findOne({phone, otp});
 
     if (user) {
       return res
@@ -39,15 +39,18 @@ router.post('/verify-otp', async (req, res) => {
 
 // Route to verify if a phone number exists
 router.post('/verify-phone', async (req, res) => {
-  const {phone_number} = req.body;
+  const {phone} = req.body;
 
   try {
-    const user = await User.findOne({phone_number});
+    const user = await User.findOne({phone});
 
     if (user) {
+      // For testing, generate a hardcoded OTP (e.g., '123456')
+      user.otp = '123456';
+      await user.save();
       return res
         .status(200)
-        .json({success: true, message: 'Phone number exists'});
+        .json({success: true, message: 'Phone number exists', otp: user.otp});
     } else {
       return res
         .status(404)

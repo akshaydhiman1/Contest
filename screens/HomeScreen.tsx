@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {View, StyleSheet, Text, Alert} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
@@ -14,11 +14,28 @@ import {
 } from '../theme/theme';
 import axios from 'axios';
 
+const API_BASE_URL = 'http://192.168.1.28:5000';
+
+// Test API connection
+const testConnection = async () => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}`);
+    console.log('Server connection test:', response.data);
+  } catch (error) {
+    console.error('Server connection test failed:', error);
+  }
+};
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 const HomeScreen = ({navigation}: Props) => {
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Test connection when component mounts
+  useEffect(() => {
+    testConnection();
+  }, []);
 
   const handleSendOTP = () => {
     // Basic validation
@@ -32,22 +49,50 @@ const HomeScreen = ({navigation}: Props) => {
 
   const handleVerifyPhone = async () => {
     try {
+      // Add +91 prefix if not present
+      const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
+      
+      console.log('Attempting to verify phone:', formattedPhone);
+      console.log('API URL:', `${API_BASE_URL}/api/users/verify-phone`);
+      
       const response = await axios.post(
-        'http://localhost:5000/api/verify-phone',
+        `${API_BASE_URL}/api/users/verify-phone`,
         {
-          phone_number: phone,
+          phone: formattedPhone,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          timeout: 5000, // 5 second timeout
         },
       );
 
+      console.log('Response received:', response.data);
       if (response.data.success) {
         setError(null);
-        navigation.navigate('OTP', {phoneNumber: phone});
+        navigation.navigate('OTP', {phoneNumber: formattedPhone});
       } else {
-        setError(response.data.message);
+        setError(response.data.message || 'Verification failed');
       }
-    } catch (err) {
-      console.error('Error verifying phone number:', err);
-      setError('Failed to verify phone number. Please try again later.');
+    } catch (err: any) {
+      console.error('Error details:', {
+        message: err.message,
+        code: err.code,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
+      
+      if (err.code === 'ECONNABORTED') {
+        setError('Request timed out. Please check your internet connection.');
+      } else if (!err.response) {
+        setError('Network error. Please check if the server is running.');
+      } else if (err.response.status === 404) {
+        setError('Phone number not found. Please try another number.');
+      } else {
+        setError(err.response?.data?.message || 'Failed to verify phone number. Please try again later.');
+      }
     }
   };
 

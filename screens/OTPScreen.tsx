@@ -14,6 +14,8 @@ import {
 } from '../theme/theme';
 import axios from 'axios';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://192.168.1.28:5000';
+
 type Props = NativeStackScreenProps<RootStackParamList, 'OTP'>;
 
 const OTPScreen = ({route, navigation}: Props) => {
@@ -24,9 +26,15 @@ const OTPScreen = ({route, navigation}: Props) => {
   useEffect(() => {
     const fetchOTP = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/users');
+        console.log('Fetching OTP for phone:', phoneNumber);
+        const response = await axios.get(`${API_BASE_URL}/api/users`, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        console.log('Users response:', response.data);
         const user = response.data.data.find(
-          (user: any) => user.phone_number === phoneNumber,
+          (user: any) => user.phone === phoneNumber,
         );
         if (user) {
           setOtp(user.otp);
@@ -44,13 +52,20 @@ const OTPScreen = ({route, navigation}: Props) => {
 
   const handleVerifyOTP = async () => {
     try {
+      console.log('Verifying OTP for phone:', phoneNumber);
       const response = await axios.post(
-        'http://localhost:5000/api/verify-otp',
+        `${API_BASE_URL}/api/users/verify-otp`,
         {
-          phone_number: phoneNumber,
+          phone: phoneNumber,
           otp,
         },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
       );
+      console.log('OTP verification response:', response.data);
 
       if (response.data.success) {
         setError(null);
