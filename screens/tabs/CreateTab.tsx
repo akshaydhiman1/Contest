@@ -12,9 +12,12 @@ import {
   FlatList,
   KeyboardAvoidingView,
   ActivityIndicator,
+  PermissionsAndroid,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useAppContext, VotingDuration, AppUser} from '../../context/AppContext';
+import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 
 interface ContestFormData {
   title: string;
@@ -94,19 +97,173 @@ const CreateTab = () => {
     }
   };
 
+  const requestCameraPermission = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Camera Permission',
+            message: 'App needs access to your camera to take photos.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          },
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      }
+      return true; // iOS handles permissions through Info.plist
+    } catch (err) {
+      console.warn('Camera permission error:', err);
+      return false;
+    }
+  };
+
+  const requestStoragePermission = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          Platform.Version >= 33
+            ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
+            : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+          {
+            title: 'Storage Permission',
+            message: 'App needs access to your storage to select photos.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          },
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      }
+      return true; // iOS handles permissions through Info.plist
+    } catch (err) {
+      console.warn('Storage permission error:', err);
+      return false;
+    }
+  };
+
+  const handleCameraLaunch = async () => {
+    try {
+      const hasPermission = await requestCameraPermission();
+      if (!hasPermission) {
+        Alert.alert(
+          'Permission Required',
+          'Please grant camera permission in your device settings to take photos.',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+            },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      const result = await launchCamera({
+        mediaType: 'photo',
+        quality: 0.8,
+        saveToPhotos: true,
+        presentationStyle: 'fullScreen',
+        cameraType: 'back',
+      });
+
+      if (result.didCancel) {
+        console.log('User cancelled camera');
+        return;
+      }
+
+      if (result.errorCode) {
+        console.error('Camera Error:', result.errorMessage);
+        Alert.alert('Error', 'Failed to capture image. Please try again.');
+        return;
+      }
+
+      if (result.assets && result.assets[0]?.uri) {
+        updateField('images', [...formData.images, result.assets[0].uri]);
+      }
+    } catch (error) {
+      console.error('Camera Error:', error);
+      Alert.alert('Error', 'Failed to access camera. Please try again.');
+    }
+  };
+
+  const handleGalleryLaunch = async () => {
+    try {
+      const hasPermission = await requestStoragePermission();
+      if (!hasPermission) {
+        Alert.alert(
+          'Permission Required',
+          'Please grant storage permission in your device settings to select photos.',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+            },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.8,
+        selectionLimit: 1,
+        presentationStyle: 'fullScreen',
+      });
+
+      if (result.didCancel) {
+        console.log('User cancelled gallery picker');
+        return;
+      }
+
+      if (result.errorCode) {
+        console.error('Gallery Error:', result.errorMessage);
+        Alert.alert('Error', 'Failed to select image. Please try again.');
+        return;
+      }
+
+      if (result.assets && result.assets[0]?.uri) {
+        updateField('images', [...formData.images, result.assets[0].uri]);
+      }
+    } catch (error) {
+      console.error('Gallery Error:', error);
+      Alert.alert('Error', 'Failed to access gallery. Please try again.');
+    }
+  };
+
   const handleAddImage = () => {
     Alert.alert(
-      'Upload Image',
-      'In a complete implementation, this would open your camera or photo gallery.',
+      'Add Image',
+      'Choose an option',
       [
         {
-          text: 'Simulate Upload',
-          onPress: () => {
-            const newImage = `https://picsum.photos/id/${Math.floor(
-              Math.random() * 100,
-            )}/500/300`;
-            updateField('images', [...formData.images, newImage]);
-          },
+          text: 'Take Photo',
+          onPress: handleCameraLaunch,
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: handleGalleryLaunch,
         },
         {
           text: 'Cancel',

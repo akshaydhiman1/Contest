@@ -22,6 +22,7 @@ const OTPScreen = ({route, navigation}: Props) => {
   const {phoneNumber} = route.params;
   const [otp, setOtp] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [testOTP, setTestOTP] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchOTP = async () => {
@@ -37,7 +38,7 @@ const OTPScreen = ({route, navigation}: Props) => {
           (user: any) => user.phone === phoneNumber,
         );
         if (user) {
-          setOtp(user.otp);
+          setTestOTP(user.otp);
         } else {
           setError('User not found.');
         }
@@ -73,9 +74,9 @@ const OTPScreen = ({route, navigation}: Props) => {
       } else {
         setError(response.data.message);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error verifying OTP:', err);
-      setError('Failed to verify OTP. Please try again later.');
+      setError(err.response?.data?.message || 'Failed to verify OTP. Please try again later.');
     }
   };
 
@@ -89,6 +90,11 @@ const OTPScreen = ({route, navigation}: Props) => {
           <Text style={styles.subtitle}>
             A verification code has been sent to {phoneNumber}
           </Text>
+          {testOTP && (
+            <Text style={styles.testOTP}>
+              Test OTP: {testOTP}
+            </Text>
+          )}
           <Input
             placeholder="Enter OTP"
             keyboardType="number-pad"
@@ -141,6 +147,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.regular,
     textAlign: 'center',
+  },
+  testOTP: {
+    fontSize: typography.fontSizeMedium,
+    color: colors.primary,
+    marginBottom: spacing.regular,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   inputContainer: {
     marginBottom: spacing.regular,
