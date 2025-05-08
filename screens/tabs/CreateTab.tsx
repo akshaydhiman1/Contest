@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  Platform,
-  Image,
+  Platform, 
+  Image, c
   FlatList,
   KeyboardAvoidingView,
   ActivityIndicator,
