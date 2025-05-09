@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  Platform,
-  Image,
+  Platform, 
+  Image, c
   FlatList,
   KeyboardAvoidingView,
   ActivityIndicator,
@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useAppContext, VotingDuration, AppUser} from '../../context/AppContext';
-import * as ImagePicker from 'react-native-image-picker';
+import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 
 interface ContestFormData {
   title: string;
@@ -30,6 +30,34 @@ interface ContestFormData {
   };
 }
 
+// Sample app users for testing
+const sampleAppUsers: AppUser[] = [
+  {
+    id: '1',
+    username: 'photo_lover',
+    avatar: 'https://picsum.photos/id/1062/100/100',
+  },
+  {
+    id: '2',
+    username: 'creative_eye',
+    avatar: 'https://picsum.photos/id/1005/100/100',
+  },
+  {
+    id: '3',
+    username: 'snap_master',
+    avatar: 'https://picsum.photos/id/1025/100/100',
+  },
+  {
+    id: '4',
+    username: 'camera_pro',
+    avatar: 'https://picsum.photos/id/1012/100/100',
+  },
+  {
+    id: '5',
+    username: 'lens_guru',
+    avatar: 'https://picsum.photos/id/1074/100/100',
+  },
+];
 
 const CreateTab = () => {
   const [formData, setFormData] = useState<ContestFormData>({
@@ -142,7 +170,7 @@ const CreateTab = () => {
         return;
       }
 
-      const result = await ImagePicker.launchCamera({
+      const result = await launchCamera({
         mediaType: 'photo',
         quality: 0.8,
         saveToPhotos: true,
@@ -197,7 +225,7 @@ const CreateTab = () => {
         return;
       }
 
-      const result = await ImagePicker.launchImageLibrary({
+      const result = await launchImageLibrary({
         mediaType: 'photo',
         quality: 0.8,
         selectionLimit: 1,
