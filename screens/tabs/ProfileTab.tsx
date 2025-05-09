@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -8,13 +8,15 @@ import {
   ScrollView,
   Switch,
   Alert,
-  Platform
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useAppContext } from '../../context/AppContext';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
+import {useAppContext} from '../../context/AppContext';
+import {useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {RootStackParamList} from '../../App';
+import {API_URL} from '../../config/constants';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -38,17 +40,6 @@ interface Setting {
   icon: string;
   iconColor: string;
 }
-
-const sampleProfile: UserProfile = {
-  name: 'John Doe',
-  username: 'johndoe',
-  email: 'john.doe@example.com',
-  bio: 'Passionate photographer with a love for landscape and wildlife photography.',
-  followers: 243,
-  following: 127,
-  contests: 15,
-  profileImage: 'https://picsum.photos/id/64/300/300'
-};
 
 const initialSettings: Setting[] = [
   {
@@ -96,18 +87,97 @@ const initialSettings: Setting[] = [
 ];
 
 const ProfileTab = () => {
-  const { user, logout } = useAppContext();
-  const [profile, setProfile] = useState<UserProfile>(sampleProfile);
+  const {user, logout} = useAppContext();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [settings, setSettings] = useState<Setting[]>(initialSettings);
   const [activeSection, setActiveSection] = useState<'profile' | 'settings'>('profile');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const navigation = useNavigation<NavigationProp>();
 
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+
+    try {
+      console.log('Fetching profile for user:', user.id);
+      const response = await fetch(`${API_URL}/api/users/${user.id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'user-id': user.id
+        }
+      });
+
+      console.log('Profile response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch user profile');
+      }
+
+      const result = await response.json();
+      console.log('Profile response data:', result);
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to fetch user profile');
+      }
+
+      const userData = result.data;
+      
+      setProfile({
+        name: userData.username || 'User',
+        username: userData.username || 'user',
+        email: userData.email || 'No email provided',
+        bio: userData.bio || 'No bio provided',
+        followers: userData.followers?.length || 0,
+        following: userData.following?.length || 0,
+        contests: userData.contests?.length || 0,
+        profileImage: userData.avatar || 'https://picsum.photos/id/64/300/300'
+      });
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      Alert.alert(
+        'Error',
+        'Failed to load profile data. Please try again.',
+        [
+          {
+            text: 'Retry',
+            onPress: fetchUserProfile
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleToggleSetting = (id: string) => {
-    setSettings(settings.map(setting => 
-      setting.id === id && setting.type === 'toggle'
-        ? { ...setting, value: !setting.value }
-        : setting
-    ));
+    if (id === 'darkMode') {
+      const newDarkMode = !isDarkMode;
+      setIsDarkMode(newDarkMode);
+      setSettings(settings.map(setting => 
+        setting.id === 'darkMode'
+          ? {...setting, value: newDarkMode}
+          : setting
+      ));
+      // Here you would typically update your app's theme
+    } else {
+      setSettings(settings.map(setting => 
+        setting.id === id && setting.type === 'toggle'
+          ? {...setting, value: !setting.value}
+          : setting
+      ));
+    }
   };
 
   const handleSettingAction = (id: string) => {
@@ -116,25 +186,24 @@ const ProfileTab = () => {
         'Logout',
         'Are you sure you want to logout?',
         [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Logout', 
-            style: 'destructive', 
+          {text: 'Cancel', style: 'cancel'},
+          {
+            text: 'Logout',
+            style: 'destructive',
             onPress: () => {
               logout();
-              // Navigate to login screen
               navigation.reset({
                 index: 0,
-                routes: [{ name: 'Home' }],
+                routes: [{name: 'Home'}],
               });
-            }
-          }
-        ]
+            },
+          },
+        ],
       );
     } else {
       Alert.alert(
         'Coming Soon',
-        'This feature will be available in a future update.'
+        'This feature will be available in a future update.',
       );
     }
   };
@@ -143,11 +212,34 @@ const ProfileTab = () => {
     Alert.alert('Profile Edit', 'This feature will be available in a future update.');
   };
 
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#9C27B0" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <View style={styles.errorContainer}>
+        <Icon name="alert-circle" size={48} color="#9C27B0" />
+        <Text style={styles.errorText}>Failed to load profile data</Text>
+        <TouchableOpacity 
+          style={styles.retryButton}
+          onPress={fetchUserProfile}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const renderProfileSection = () => (
     <ScrollView contentContainerStyle={styles.profileScrollContent}>
       <View style={styles.profileHeader}>
         <View style={styles.profileImageContainer}>
-          <Image source={{ uri: profile.profileImage }} style={styles.profileImage} />
+          <Image source={{uri: profile.profileImage}} style={styles.profileImage} />
         </View>
         <Text style={styles.profileName}>{profile.name}</Text>
         <Text style={styles.username}>@{profile.username}</Text>
@@ -208,10 +300,10 @@ const ProfileTab = () => {
           </View>
           {setting.type === 'toggle' ? (
             <Switch
-              value={setting.value}
+              value={setting.id === 'darkMode' ? isDarkMode : setting.value}
               onValueChange={() => handleToggleSetting(setting.id)}
-              trackColor={{ false: '#d0d0d0', true: '#a0cfff' }}
-              thumbColor={setting.value ? '#2196F3' : '#f4f3f4'}
+              trackColor={{false: '#d0d0d0', true: '#a0cfff'}}
+              thumbColor={setting.id === 'darkMode' ? (isDarkMode ? '#2196F3' : '#f4f3f4') : (setting.value ? '#2196F3' : '#f4f3f4')}
             />
           ) : (
             <TouchableOpacity 
@@ -227,13 +319,13 @@ const ProfileTab = () => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, isDarkMode && styles.darkContainer]}>
+      <View style={[styles.header, isDarkMode && styles.darkHeader]}>
         <Icon name="account" size={22} color="#9C27B0" />
-        <Text style={styles.headerTitle}>Profile</Text>
+        <Text style={[styles.headerTitle, isDarkMode && styles.darkText]}>Profile</Text>
       </View>
       
-      <View style={styles.tabs}>
+      <View style={[styles.tabs, isDarkMode && styles.darkTabs]}>
         <TouchableOpacity
           style={[styles.tab, activeSection === 'profile' && styles.activeTab]}
           onPress={() => setActiveSection('profile')}
@@ -241,12 +333,13 @@ const ProfileTab = () => {
           <Icon
             name="account"
             size={18}
-            color={activeSection === 'profile' ? '#9C27B0' : '#666'}
+            color={activeSection === 'profile' ? '#9C27B0' : (isDarkMode ? '#fff' : '#666')}
           />
           <Text
             style={[
               styles.tabText,
-              activeSection === 'profile' && styles.activeTabText
+              activeSection === 'profile' && styles.activeTabText,
+              isDarkMode && styles.darkText
             ]}
           >
             Profile
@@ -260,12 +353,13 @@ const ProfileTab = () => {
           <Icon
             name="cog"
             size={18}
-            color={activeSection === 'settings' ? '#9C27B0' : '#666'}
+            color={activeSection === 'settings' ? '#9C27B0' : (isDarkMode ? '#fff' : '#666')}
           />
           <Text
             style={[
               styles.tabText,
-              activeSection === 'settings' && styles.activeTabText
+              activeSection === 'settings' && styles.activeTabText,
+              isDarkMode && styles.darkText
             ]}
           >
             Settings
@@ -283,6 +377,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  darkContainer: {
+    backgroundColor: '#121212',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -293,7 +390,7 @@ const styles = StyleSheet.create({
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: {width: 0, height: 2},
         shadowOpacity: 0.1,
         shadowRadius: 2,
       },
@@ -302,17 +399,28 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  darkHeader: {
+    backgroundColor: '#1e1e1e',
+    borderBottomColor: '#333',
+  },
   headerTitle: {
     marginLeft: 8,
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
   },
+  darkText: {
+    color: '#fff',
+  },
   tabs: {
     flexDirection: 'row',
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+  },
+  darkTabs: {
+    backgroundColor: '#1e1e1e',
+    borderBottomColor: '#333',
   },
   tab: {
     flex: 1,
@@ -333,6 +441,41 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: '#9C27B0',
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#333',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    padding: 20,
+  },
+  errorText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#9C27B0',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   profileScrollContent: {
     paddingBottom: 20,

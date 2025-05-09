@@ -16,12 +16,13 @@ const userRoutes = require('./routes/userRoutes');
 // Initialize Express app
 const app = express();
 
-// CORS configuration
+// Middleware
+app.use(express.json());
 app.use(cors({
   origin: true, // Allow all origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'user-id'],
 }));
 
 // Middleware
@@ -47,11 +48,11 @@ app.get('/', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error(err.stack);
   res.status(500).json({
     success: false,
-    message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    message: 'Something went wrong!',
+    error: err.message
   });
 });
 
@@ -85,3 +86,5 @@ connectDB().then(() => {
     console.log('CORS enabled for all origins');
   });
 });
+
+module.exports = app;

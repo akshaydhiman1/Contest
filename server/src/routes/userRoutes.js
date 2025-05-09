@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 
-// Route to fetch all users
-router.get('/users', async (req, res) => {
+// Route to fetch all users - this must come before /:userId route
+router.get('/all', async (req, res) => {
   try {
     const users = await User.find({}, '_id phone otp').select('+otp');
     console.log('All users in database:', users);
@@ -11,6 +11,37 @@ router.get('/users', async (req, res) => {
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({success: false, message: 'Failed to fetch users'});
+  }
+});
+
+// Route to get a single user's profile
+router.get('/:userId', async (req, res) => {
+  try {
+    console.log('Fetching user profile for ID:', req.params.userId);
+    const user = await User.findById(req.params.userId)
+      .select('-password -salt -otp') // Exclude sensitive fields
+      .populate('contests', 'title images')
+      .populate('participatingContests', 'title images');
+
+    console.log('Found user:', user);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch user profile'
+    });
   }
 });
 

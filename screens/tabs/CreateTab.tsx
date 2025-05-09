@@ -352,6 +352,7 @@ const CreateTab = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'user-id': user.id // Add user ID to headers
         },
         body: JSON.stringify(newContest),
       });
@@ -384,6 +385,7 @@ const CreateTab = () => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'user-id': user.id // Add user ID to headers
             },
             body: JSON.stringify(invitationData),
           });

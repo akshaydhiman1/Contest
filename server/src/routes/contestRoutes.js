@@ -12,15 +12,20 @@ const {
 const Contest = require('../models/Contest');
 const User = require('../models/User');
 
-// Middleware for authentication - same as in invitationRoutes
+// Middleware for authentication
 const authMiddleware = (req, res, next) => {
-  // In a real application, this would verify a JWT token
-  // For now, we'll use one of our seeded users (abhishek_photo)
+  // Get user ID from the request (this should be set by your auth middleware)
+  const userId = req.headers['user-id'];
+  if (!userId) {
+    return res.status(401).json({ 
+      success: false,
+      message: 'User ID is required' 
+    });
+  }
+
+  // Set the user ID in the request
   req.user = {
-    id: '60f1a5c5e98f4a001c9b1234', // Seeded user ID - abhishek_photo
-    username: 'abhishek_photo',
-    email: 'abhishek@example.com',
-    phone: '+919876543210',
+    id: userId
   };
   next();
 };

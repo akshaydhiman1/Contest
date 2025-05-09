@@ -54,7 +54,11 @@ const ContestTab = () => {
 
     try {
       console.log('Fetching contests for user:', user.id);
-      const response = await fetch(`${API_URL}/api/contests/user/created`);
+      const response = await fetch(`${API_URL}/api/contests/user/created`, {
+        headers: {
+          'user-id': user.id // Add user ID to headers
+        }
+      });
       console.log('Contest response status:', response.status);
       
       const result = await response.json();
