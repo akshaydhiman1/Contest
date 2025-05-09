@@ -34,7 +34,7 @@ interface ContestFormData {
 const CreateTab = () => {
   const [formData, setFormData] = useState<ContestFormData>({
     title: '',
-    description: '', //change
+    description: '',
     images: [],
     votingDuration: null,
     invitees: {
