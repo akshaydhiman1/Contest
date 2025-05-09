@@ -12,6 +12,7 @@ import {
   ListRenderItem,
   KeyboardAvoidingView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {API_URL} from '../../config/constants';
@@ -33,10 +34,15 @@ interface Contest {
   title: string;
   images: string[];
   creator: {
+    _id: string;
     username: string;
     avatar: string;
   };
+  creatorId?: string;
   createdAt: string;
+  likes?: number;
+  liked?: boolean;
+  comments?: AppComment[];
 }
 
 const ContestTab = () => {
@@ -46,44 +52,61 @@ const ContestTab = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Fetch user's contests
+  const fetchUserContests = async () => {
+    if (!user) {
+      setError('Please log in to view your contests');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      console.log('Fetching contests for user:', user.id);
+      const response = await fetch(`${API_URL}/api/contests/user/created`);
+      console.log('Contest response status:', response.status);
+      
+      const result = await response.json();
+      console.log('Contest response data:', result);
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to fetch contests');
+      }
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to fetch contests');
+      }
+
+      const contests = result.data;
+      console.log('User contests:', contests);
+      
+      // Transform contests to photo format
+      const transformedPhotos: Photo[] = contests.map((contest: Contest) => ({
+        id: contest._id,
+        uri: contest.images[0], // Use first image as main photo
+        caption: contest.title,
+        username: contest.creator?.username || 'Unknown',
+        likes: contest.likes || 0,
+        liked: contest.liked || false,
+        comments: contest.comments || [],
+        timestamp: new Date(contest.createdAt).toLocaleDateString(),
+      }));
+
+      setPhotos(transformedPhotos);
+      setError(null);
+    } catch (err: any) {
+      console.error('Error fetching contests:', err);
+      setError('Failed to load contests. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Add a refresh function
+  const handleRefresh = () => {
+    setIsLoading(true);
+    fetchUserContests();
+  };
+
   useEffect(() => {
-    const fetchUserContests = async () => {
-      if (!user) {
-        setError('Please log in to view your contests');
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(`${API_URL}/api/contests/user/${user.id}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch contests');
-        }
-
-        const contests = await response.json();
-        
-        // Transform contests to photo format
-        const transformedPhotos: Photo[] = contests.map((contest: Contest) => ({
-          id: contest._id,
-          uri: contest.images[0], // Use first image as main photo
-          caption: contest.title,
-          username: contest.creator.username,
-          likes: 0, // These will be implemented later
-          liked: false,
-          comments: [], // These will be implemented later
-          timestamp: new Date(contest.createdAt).toLocaleDateString(),
-        }));
-
-        setPhotos(transformedPhotos);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching contests:', err);
-        setError('Failed to load contests. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchUserContests();
   }, [user]);
 
@@ -98,19 +121,36 @@ const ContestTab = () => {
     // For now we're using the mocked photos data
   }, []);
 
-  const handleLike = (photoId: string) => {
-    setPhotos(
-      photos.map(photo => {
-        if (photo.id === photoId) {
-          return {
-            ...photo,
-            likes: photo.liked ? photo.likes - 1 : photo.likes + 1,
-            liked: !photo.liked,
-          };
-        }
-        return photo;
-      }),
-    );
+  const handleLike = async (photoId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/contests/${photoId}/like`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to like contest');
+      }
+
+      // Update local state
+      setPhotos(prevPhotos =>
+        prevPhotos.map(photo => {
+          if (photo.id === photoId) {
+            return {
+              ...photo,
+              likes: photo.liked ? photo.likes - 1 : photo.likes + 1,
+              liked: !photo.liked,
+            };
+          }
+          return photo;
+        }),
+      );
+    } catch (error) {
+      console.error('Error liking contest:', error);
+      Alert.alert('Error', 'Failed to like contest. Please try again.');
+    }
   };
 
   const toggleComments = (photoId: string) => {
@@ -118,29 +158,46 @@ const ContestTab = () => {
     setCommentText('');
   };
 
-  const addComment = (photoId: string) => {
-    if (!commentText.trim()) return;
+  const addComment = async (photoId: string) => {
+    if (!commentText.trim() || !user) return;
 
-    const newComment: AppComment = {
-      id: `c${Date.now()}`,
-      username: 'you',
-      text: commentText.trim(),
-      timestamp: 'Just now',
-    };
+    try {
+      const response = await fetch(`${API_URL}/api/contests/${photoId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: commentText.trim(),
+          userId: user.id,
+        }),
+      });
 
-    setPhotos(
-      photos.map(photo => {
-        if (photo.id === photoId) {
-          return {
-            ...photo,
-            comments: [...photo.comments, newComment],
-          };
-        }
-        return photo;
-      }),
-    );
+      if (!response.ok) {
+        throw new Error('Failed to add comment');
+      }
 
-    setCommentText('');
+      const result = await response.json();
+      const newComment = result.data;
+
+      // Update local state
+      setPhotos(prevPhotos =>
+        prevPhotos.map(photo => {
+          if (photo.id === photoId) {
+            return {
+              ...photo,
+              comments: [...photo.comments, newComment],
+            };
+          }
+          return photo;
+        }),
+      );
+
+      setCommentText('');
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      Alert.alert('Error', 'Failed to add comment. Please try again.');
+    }
   };
 
   const renderCommentItem: ListRenderItem<AppComment> = ({item}) => (
@@ -244,6 +301,11 @@ const ContestTab = () => {
       <View style={styles.errorContainer}>
         <Icon name="alert-circle" size={48} color="#FFC107" />
         <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity 
+          style={styles.retryButton}
+          onPress={handleRefresh}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -266,14 +328,49 @@ const ContestTab = () => {
       <View style={styles.header}>
         <Icon name="trophy" size={22} color="#FFC107" />
         <Text style={styles.title}>My Contests</Text>
+        <TouchableOpacity 
+          style={styles.refreshButton} 
+          onPress={handleRefresh}
+          disabled={isLoading}>
+          <Icon 
+            name="refresh" 
+            size={22} 
+            color={isLoading ? '#ccc' : '#FFC107'} 
+          />
+        </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={photos}
-        renderItem={renderPhotoItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.photosList}
-      />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFC107" />
+          <Text style={styles.loadingText}>Loading your contests...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Icon name="alert-circle" size={48} color="#FFC107" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={handleRefresh}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : photos.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Icon name="image-off" size={48} color="#FFC107" />
+          <Text style={styles.emptyText}>No contests yet</Text>
+          <Text style={styles.emptySubText}>Create your first contest to get started!</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={photos}
+          renderItem={renderPhotoItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.photosList}
+          refreshing={isLoading}
+          onRefresh={handleRefresh}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 };
@@ -473,6 +570,22 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     color: '#666',
+    textAlign: 'center',
+  },
+  refreshButton: {
+    position: 'absolute',
+    right: 16,
+    padding: 8,
+  },
+  retryButton: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#FFC107',
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
     textAlign: 'center',
   },
 });

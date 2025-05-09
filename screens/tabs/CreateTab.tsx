@@ -37,26 +37,36 @@ const sampleAppUsers: AppUser[] = [
     id: '1',
     username: 'photo_lover',
     avatar: 'https://picsum.photos/id/1062/100/100',
+    phone: '+919876543210',
+    isVerified: true
   },
   {
     id: '2',
     username: 'creative_eye',
     avatar: 'https://picsum.photos/id/1005/100/100',
+    phone: '+919876543211',
+    isVerified: true
   },
   {
     id: '3',
     username: 'snap_master',
     avatar: 'https://picsum.photos/id/1025/100/100',
+    phone: '+919876543212',
+    isVerified: true
   },
   {
     id: '4',
     username: 'camera_pro',
     avatar: 'https://picsum.photos/id/1012/100/100',
+    phone: '+919876543213',
+    isVerified: true
   },
   {
     id: '5',
     username: 'lens_guru',
     avatar: 'https://picsum.photos/id/1074/100/100',
+    phone: '+919876543214',
+    isVerified: true
   },
 ];
 
@@ -289,7 +299,7 @@ const CreateTab = () => {
   };
 
   // Get context functions
-  const {addContest, addInvitations, user} = useAppContext();
+  const {addContest, addInvitations, user, loadContests} = useAppContext();
 
   const finalizeContest = async () => {
     try {
@@ -330,7 +340,8 @@ const CreateTab = () => {
         images: formData.images,
         votingDuration: formData.votingDuration,
         startDate: new Date().toISOString(),
-        creatorId: user.id
+        creatorId: user.id,
+        status: 'active'
       };
 
       // Make API call to create contest
@@ -350,13 +361,24 @@ const CreateTab = () => {
 
       // Create invitations for selected users
       if (formData.invitees.appUsers.length > 0) {
-        await addInvitations(
-          {
-            appUsers: formData.invitees.appUsers,
-            phoneNumbers: formData.invitees.phoneNumbers,
-          },
-          createdContest._id,
-        );
+        const invitationPromises = formData.invitees.appUsers.map(async (invitee) => {
+          const invitationData = {
+            contestId: createdContest.data._id,
+            to: invitee.id,
+            method: 'app',
+            status: 'pending'
+          };
+
+          await fetch(`${API_URL}/api/invitations`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(invitationData),
+          });
+        });
+
+        await Promise.all(invitationPromises);
       }
 
       setIsLoading(false);
@@ -381,6 +403,8 @@ const CreateTab = () => {
               });
               setSelectedUsers({});
               setCurrentStep(1);
+              // Reload contests in ContestTab
+              loadContests();
             },
           },
         ],
