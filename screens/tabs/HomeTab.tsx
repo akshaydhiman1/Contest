@@ -56,15 +56,29 @@ const HomeTab = () => {
   const fetchContests = async () => {
     try {
       setLoading(true);
+      console.log('Fetching all contests from:', `${API_URL}/api/contests/all`);
       const response = await fetch(`${API_URL}/api/contests/all`);
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch contests');
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(errorData.message || 'Failed to fetch contests');
       }
-      const data = await response.json();
-      setContests(data);
+
+      const result = await response.json();
+      console.log('Contests fetched:', result);
+
+      if (!result.success) {
+        console.error('Unsuccessful response:', result);
+        throw new Error(result.message || 'Failed to fetch contests');
+      }
+
+      setContests(result.data);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch contests');
       console.error('Error fetching contests:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch contests');
     } finally {
       setLoading(false);
     }

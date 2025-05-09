@@ -341,8 +341,11 @@ const CreateTab = () => {
         votingDuration: formData.votingDuration,
         startDate: new Date().toISOString(),
         creatorId: user.id,
-        status: 'active'
+        status: 'active',
+        participants: [] // Initialize empty participants array
       };
+
+      console.log('Creating contest:', newContest);
 
       // Make API call to create contest
       const response = await fetch(`${API_URL}/api/contests/create`, {
@@ -354,16 +357,24 @@ const CreateTab = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create contest');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create contest');
       }
 
-      const createdContest = await response.json();
+      const result = await response.json();
+      console.log('Contest created:', result);
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to create contest');
+      }
+
+      const createdContest = result.data;
 
       // Create invitations for selected users
       if (formData.invitees.appUsers.length > 0) {
         const invitationPromises = formData.invitees.appUsers.map(async (invitee) => {
           const invitationData = {
-            contestId: createdContest.data._id,
+            contestId: createdContest._id,
             to: invitee.id,
             method: 'app',
             status: 'pending'
@@ -403,7 +414,7 @@ const CreateTab = () => {
               });
               setSelectedUsers({});
               setCurrentStep(1);
-              // Reload contests in ContestTab
+              // Reload contests in ContestTab and HomeTab
               loadContests();
             },
           },
@@ -411,8 +422,8 @@ const CreateTab = () => {
       );
     } catch (error) {
       setIsLoading(false);
-      Alert.alert('Error', 'Failed to create contest. Please try again.');
       console.error('Error creating contest:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to create contest. Please try again.');
     }
   };
 

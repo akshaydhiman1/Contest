@@ -32,10 +32,19 @@ router.get('/all', async (req, res) => {
       .populate('creator', 'username avatar')
       .populate('participants', 'username avatar')
       .sort({ createdAt: -1 });
-    res.json(contests);
+    
+    res.json({
+      success: true,
+      count: contests.length,
+      data: contests
+    });
   } catch (error) {
     console.error('Error fetching contests:', error);
-    res.status(500).json({ message: 'Error fetching contests' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching contests',
+      error: error.message 
+    });
   }
 });
 
