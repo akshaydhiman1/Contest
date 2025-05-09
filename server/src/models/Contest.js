@@ -1,82 +1,94 @@
 const mongoose = require('mongoose');
 
-const ContestSchema = new mongoose.Schema(
-  {
-    title: {
-      type: String,
-      required: [true, 'Please provide a title for the contest'],
-      trim: true,
-      maxlength: [100, 'Contest title cannot be more than 100 characters'],
-    },
-    description: {
-      type: String,
-      required: [true, 'Please provide a description for the contest'],
-      trim: true,
-      maxlength: [
-        1000,
-        'Contest description cannot be more than 1000 characters',
-      ],
-    },
-    images: {
-      type: [String],
-      default: [],
-    },
-    creator: {
+const contestSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  images: [{
+    type: String,
+    required: true
+  }],
+  creator: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  votingDuration: {
+    type: String,
+    enum: ['12h', '24h', '48h', '72h', '7d'],
+    required: true
+  },
+  startTime: {
+    type: Date,
+    default: Date.now
+  },
+  endTime: {
+    type: Date,
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['active', 'ended', 'cancelled'],
+    default: 'active'
+  },
+  participants: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  votes: [{
+    user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'Please provide a creator for the contest'],
+      ref: 'User'
     },
-    votingDuration: {
-      type: String,
-      enum: ['12h', '24h', '48h', '72h', '7d'],
-      default: '24h',
-    },
-    startDate: {
+    imageIndex: Number,
+    timestamp: {
       type: Date,
-      default: Date.now,
+      default: Date.now
+    }
+  }],
+  likes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  comments: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
     },
-    endDate: {
+    text: String,
+    timestamp: {
       type: Date,
-      default: function () {
-        // Calculate end date based on voting duration
-        const duration = this.votingDuration;
-        const start = this.startDate || new Date();
+      default: Date.now
+    }
+  }]
+}, {
+  timestamps: true
+});
 
-        if (duration === '12h')
-          return new Date(start.getTime() + 12 * 60 * 60 * 1000);
-        if (duration === '24h')
-          return new Date(start.getTime() + 24 * 60 * 60 * 1000);
-        if (duration === '48h')
-          return new Date(start.getTime() + 48 * 60 * 60 * 1000);
-        if (duration === '72h')
-          return new Date(start.getTime() + 72 * 60 * 60 * 1000);
-        if (duration === '7d')
-          return new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+// Calculate end time based on voting duration
+contestSchema.pre('save', function(next) {
+  if (this.isModified('votingDuration')) {
+    const duration = this.votingDuration;
+    const hours = {
+      '12h': 12,
+      '24h': 24,
+      '48h': 48,
+      '72h': 72,
+      '7d': 168
+    }[duration];
+    
+    this.endTime = new Date(this.startTime.getTime() + (hours * 60 * 60 * 1000));
+  }
+  next();
+});
 
-        return new Date(start.getTime() + 24 * 60 * 60 * 1000); // Default 24 hours
-      },
-    },
-    status: {
-      type: String,
-      enum: ['draft', 'active', 'completed', 'cancelled'],
-      default: 'active',
-    },
-    participants: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-      },
-    ],
-    invitations: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Invitation',
-      },
-    ],
-  },
-  {
-    timestamps: true,
-  },
-);
+const Contest = mongoose.model('Contest', contestSchema);
 
-module.exports = mongoose.model('Contest', ContestSchema);
+module.exports = Contest;
