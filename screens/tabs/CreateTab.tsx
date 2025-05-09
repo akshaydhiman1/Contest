@@ -8,7 +8,7 @@ import {
   ScrollView,
   Alert,
   Platform, 
-  Image,1
+  Image,
   FlatList,
   KeyboardAvoidingView,
   ActivityIndicator,
@@ -18,6 +18,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useAppContext, VotingDuration, AppUser} from '../../context/AppContext';
 import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
+import {API_URL} from '../../config/constants';
 
 interface ContestFormData {
   title: string;
@@ -288,7 +289,7 @@ const CreateTab = () => {
   };
 
   // Get context functions
-  const {addContest, addInvitations} = useAppContext();
+  const {addContest, addInvitations, user} = useAppContext();
 
   const finalizeContest = async () => {
     try {
@@ -315,66 +316,79 @@ const CreateTab = () => {
 
       setIsLoading(true);
 
+      // Get the current user from context
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to create a contest');
+        setIsLoading(false);
+        return;
+      }
+
       // Create new contest
       const newContest = {
         title: formData.title,
         description: formData.description,
         images: formData.images,
-        votingDuration: formData.votingDuration as VotingDuration,
-        creator: 'current_user', // In a real app, get this from auth
-        timestamp: 'Just now',
-        likes: 0,
-        liked: false,
-        comments: [],
+        votingDuration: formData.votingDuration,
+        startDate: new Date().toISOString(),
+        creatorId: user.id
       };
 
-      // Add contest to context - this will call the API
-      const createdContest = await addContest(newContest);
+      // Make API call to create contest
+      const response = await fetch(`${API_URL}/api/contests/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newContest),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create contest');
+      }
+
+      const createdContest = await response.json();
 
       // Create invitations for selected users
       if (formData.invitees.appUsers.length > 0) {
-        // Add invitations to context with contestId and invitees
         await addInvitations(
           {
             appUsers: formData.invitees.appUsers,
             phoneNumbers: formData.invitees.phoneNumbers,
           },
-          createdContest.id,
+          createdContest._id,
         );
       }
 
-      // Simulate API call - will be replaced with real API calls
-      setTimeout(() => {
-        setIsLoading(false);
+      setIsLoading(false);
 
-        Alert.alert(
-          'Success!',
-          `Contest "${formData.title}" created successfully!`,
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Reset form
-                setFormData({
-                  title: '',
-                  description: '',
-                  images: [],
-                  votingDuration: null,
-                  invitees: {
-                    appUsers: [],
-                    phoneNumbers: [],
-                  },
-                });
-                setSelectedUsers({});
-                setCurrentStep(1);
-              },
+      Alert.alert(
+        'Success!',
+        `Contest "${formData.title}" created successfully!`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Reset form
+              setFormData({
+                title: '',
+                description: '',
+                images: [],
+                votingDuration: null,
+                invitees: {
+                  appUsers: [],
+                  phoneNumbers: [],
+                },
+              });
+              setSelectedUsers({});
+              setCurrentStep(1);
             },
-          ],
-        );
-      }, 1500);
+          },
+        ],
+      );
     } catch (error) {
       setIsLoading(false);
       Alert.alert('Error', 'Failed to create contest. Please try again.');
+      console.error('Error creating contest:', error);
     }
   };
 

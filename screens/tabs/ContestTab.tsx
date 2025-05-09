@@ -11,8 +11,10 @@ import {
   Platform,
   ListRenderItem,
   KeyboardAvoidingView,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {API_URL} from '../../config/constants';
 
 // Use a local interface for photo display that maps to our context Contest type
 interface Photo {
@@ -26,25 +28,65 @@ interface Photo {
   timestamp: string;
 }
 
+interface Contest {
+  _id: string;
+  title: string;
+  images: string[];
+  creator: {
+    username: string;
+    avatar: string;
+  };
+  createdAt: string;
+}
+
 const ContestTab = () => {
-  const {contests} = useAppContext();
+  const {user} = useAppContext();
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Transform contests from context to photo format for display
+  // Fetch user's contests
   useEffect(() => {
-    const transformedPhotos: Photo[] = contests.map(contest => ({
-      id: contest.id,
-      uri: contest.images[0], // Use first image as main photo
-      caption: contest.title,
-      username: contest.creator,
-      likes: contest.likes,
-      liked: contest.liked,
-      comments: contest.comments,
-      timestamp: contest.timestamp,
-    }));
+    const fetchUserContests = async () => {
+      if (!user) {
+        setError('Please log in to view your contests');
+        setIsLoading(false);
+        return;
+      }
 
-    setPhotos(transformedPhotos);
-  }, [contests]);
+      try {
+        const response = await fetch(`${API_URL}/api/contests/user/${user.id}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch contests');
+        }
+
+        const contests = await response.json();
+        
+        // Transform contests to photo format
+        const transformedPhotos: Photo[] = contests.map((contest: Contest) => ({
+          id: contest._id,
+          uri: contest.images[0], // Use first image as main photo
+          caption: contest.title,
+          username: contest.creator.username,
+          likes: 0, // These will be implemented later
+          liked: false,
+          comments: [], // These will be implemented later
+          timestamp: new Date(contest.createdAt).toLocaleDateString(),
+        }));
+
+        setPhotos(transformedPhotos);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching contests:', err);
+        setError('Failed to load contests. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserContests();
+  }, [user]);
+
   const [expandedComments, setExpandedComments] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
 
@@ -188,6 +230,34 @@ const ContestTab = () => {
     </View>
   );
 
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FFC107" />
+        <Text style={styles.loadingText}>Loading your contests...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Icon name="alert-circle" size={48} color="#FFC107" />
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
+
+  if (photos.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Icon name="image-off" size={48} color="#FFC107" />
+        <Text style={styles.emptyText}>No contests yet</Text>
+        <Text style={styles.emptySubText}>Create your first contest to get started!</Text>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -195,7 +265,7 @@ const ContestTab = () => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
       <View style={styles.header}>
         <Icon name="trophy" size={22} color="#FFC107" />
-        <Text style={styles.title}>Photo Contest</Text>
+        <Text style={styles.title}>My Contests</Text>
       </View>
 
       <FlatList
@@ -361,6 +431,49 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 12,
     color: '#999',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#333',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    padding: 20,
+  },
+  errorText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    padding: 20,
+  },
+  emptyText: {
+    marginTop: 12,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  emptySubText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
 });
 

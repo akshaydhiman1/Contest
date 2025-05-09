@@ -49,9 +49,11 @@ export interface Invitation {
 }
 
 // Create the context
-interface AppContextType {
+export interface AppContextType {
+  user: AppUser | null;
+  setUser: (user: AppUser | null) => void;
   contests: Contest[];
-  addContest: (contest: Omit<Contest, 'id'>) => Promise<Contest>;
+  addContest: (contest: Contest) => Promise<Contest>;
   loadContests: () => Promise<void>;
   isLoadingContests: boolean;
   contestsError: string | null;
@@ -89,6 +91,8 @@ export const AppProvider: React.FC<{children: ReactNode}> = ({children}) => {
   const [isLoadingInvitations, setIsLoadingInvitations] =
     useState<boolean>(false);
   const [invitationsError, setInvitationsError] = useState<string | null>(null);
+
+  const [user, setUser] = useState<AppUser | null>(null);
 
   // Function to load all contests
   const loadContests = async () => {
@@ -194,7 +198,7 @@ export const AppProvider: React.FC<{children: ReactNode}> = ({children}) => {
   };
 
   // Function to add a new contest
-  const addContest = async (contest: Omit<Contest, 'id'>): Promise<Contest> => {
+  const addContest = async (contest: Contest): Promise<Contest> => {
     try {
       // Use mock data if API is unavailable
       if (USE_MOCK_DATA) {
@@ -459,6 +463,8 @@ export const AppProvider: React.FC<{children: ReactNode}> = ({children}) => {
   return (
     <AppContext.Provider
       value={{
+        user,
+        setUser,
         contests,
         addContest,
         loadContests,
