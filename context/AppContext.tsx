@@ -9,6 +9,7 @@ import {
   contestService,
   invitationService,
 } from '../server/src/services/apiService';
+import axios from 'axios';
 
 // Define types
 export type VotingDuration = '12h' | '24h' | '48h' | '72h' | '7d';
@@ -17,6 +18,9 @@ export interface AppUser {
   id: string;
   username: string;
   avatar: string;
+  phone: string;
+  email?: string;
+  isVerified: boolean;
 }
 
 export interface Contest {
@@ -52,6 +56,8 @@ export interface Invitation {
 export interface AppContextType {
   user: AppUser | null;
   setUser: (user: AppUser | null) => void;
+  login: (userData: AppUser) => void;
+  logout: () => void;
   contests: Contest[];
   addContest: (contest: Contest) => Promise<Contest>;
   loadContests: () => Promise<void>;
@@ -80,6 +86,8 @@ const mockToken = 'mock-token-for-development';
 // Flag to toggle between API and mock data (useful when API server is unavailable)
 const USE_MOCK_DATA = true; // Set to false when the API server is available
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://192.168.1.28:5000';
+
 // Create a provider component
 export const AppProvider: React.FC<{children: ReactNode}> = ({children}) => {
   const [contests, setContests] = useState<Contest[]>([]);
@@ -94,106 +102,30 @@ export const AppProvider: React.FC<{children: ReactNode}> = ({children}) => {
 
   const [user, setUser] = useState<AppUser | null>(null);
 
+  const login = (userData: AppUser) => {
+    setUser(userData);
+    // Load user-specific data after login
+    loadContests();
+    loadInvitations();
+  };
+
+  const logout = () => {
+    setUser(null);
+    // Clear user-specific data
+    setContests([]);
+    setInvitations([]);
+  };
+
   // Function to load all contests
   const loadContests = async () => {
+    if (!user) return;
     try {
-      setIsLoadingContests(true);
-      setContestsError(null);
-
-      if (USE_MOCK_DATA) {
-        // Use mock data
-        const mockContests: Contest[] = [
-          {
-            id: '1',
-            title: 'Wildlife Photography',
-            description: 'Share your best wildlife photos!',
-            images: ['https://picsum.photos/id/237/300/300'],
-            votingDuration: '24h',
-            creator: 'wildlife_enthusiast',
-            timestamp: '3 hours ago',
-            likes: 42,
-            liked: false,
-            comments: [
-              {
-                id: 'c1',
-                username: 'sarah89',
-                text: 'So cute! 😍',
-                timestamp: '1h ago',
-              },
-            ],
-          },
-          {
-            id: '2',
-            title: 'Urban Landscapes',
-            description: 'Show off your city views!',
-            images: ['https://picsum.photos/id/1029/300/300'],
-            votingDuration: '48h',
-            creator: 'city_explorer',
-            timestamp: '1 day ago',
-            likes: 28,
-            liked: false,
-            comments: [],
-          },
-        ];
-
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        setContests(mockContests);
-      } else {
-        // In a real app, use the token from auth
-        const contestsData = await contestService.getAllContests(mockToken);
-
-        // Transform the data to match our Contest interface
-        const transformedContests: Contest[] = contestsData.map(
-          (contest: any) => ({
-            id: contest._id,
-            title: contest.title,
-            description: contest.description,
-            images: contest.images,
-            votingDuration: contest.votingDuration,
-            creator: contest.creator.username || 'Unknown User',
-            timestamp: new Date(contest.createdAt).toLocaleString(),
-            likes: 0, // This would come from another API in a real app
-            liked: false, // This would be user-specific in a real app
-            comments: [], // This would come from another API in a real app
-          }),
-        );
-
-        setContests(transformedContests);
+      const response = await axios.get(`${API_BASE_URL}/api/contests/user/${user.id}`);
+      if (response.data.success) {
+        setContests(response.data.data);
       }
     } catch (error) {
-      setContestsError(
-        error instanceof Error ? error.message : 'Failed to load contests',
-      );
       console.error('Error loading contests:', error);
-
-      // Fallback to mock data in case of error
-      const mockContests: Contest[] = [
-        {
-          id: '1',
-          title: 'Wildlife Photography',
-          description: 'Share your best wildlife photos!',
-          images: ['https://picsum.photos/id/237/300/300'],
-          votingDuration: '24h',
-          creator: 'wildlife_enthusiast',
-          timestamp: '3 hours ago',
-          likes: 42,
-          liked: false,
-          comments: [
-            {
-              id: 'c1',
-              username: 'sarah89',
-              text: 'So cute! 😍',
-              timestamp: '1h ago',
-            },
-          ],
-        },
-      ];
-
-      setContests(mockContests);
-    } finally {
-      setIsLoadingContests(false);
     }
   };
 
@@ -286,75 +218,14 @@ export const AppProvider: React.FC<{children: ReactNode}> = ({children}) => {
 
   // Function to load all invitations
   const loadInvitations = async () => {
+    if (!user) return;
     try {
-      setIsLoadingInvitations(true);
-      setInvitationsError(null);
-
-      if (USE_MOCK_DATA) {
-        // Use mock data
-        const mockInvitations: Invitation[] = [
-          {
-            id: '1',
-            contestId: '1',
-            contestTitle: 'Wildlife Photography',
-            from: 'wildlife_enthusiast',
-            status: 'pending',
-            date: '2 days ago',
-          },
-          {
-            id: '2',
-            contestTitle: 'Urban Landscapes',
-            contestId: '2',
-            from: 'city_explorer',
-            status: 'accepted',
-            date: '1 week ago',
-          },
-        ];
-
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        setInvitations(mockInvitations);
-      } else {
-        // In a real app, use the token from auth
-        const receivedInvitations =
-          await invitationService.getReceivedInvitations(mockToken);
-
-        // Transform the data to match our Invitation interface
-        const transformedInvitations: Invitation[] = receivedInvitations.map(
-          (inv: any) => ({
-            id: inv._id,
-            contestId: inv.contestId._id,
-            contestTitle: inv.contestId.title,
-            from: inv.from.username || inv.from.name || inv.from,
-            status: inv.status,
-            date: new Date(inv.createdAt).toLocaleString(),
-          }),
-        );
-
-        setInvitations(transformedInvitations);
+      const response = await axios.get(`${API_BASE_URL}/api/invitations/received/${user.id}`);
+      if (response.data.success) {
+        setInvitations(response.data.data);
       }
     } catch (error) {
-      setInvitationsError(
-        error instanceof Error ? error.message : 'Failed to load invitations',
-      );
       console.error('Error loading invitations:', error);
-
-      // Fallback to mock data in case of error
-      const mockInvitations: Invitation[] = [
-        {
-          id: '1',
-          contestId: '1',
-          contestTitle: 'Wildlife Photography',
-          from: 'wildlife_enthusiast',
-          status: 'pending',
-          date: '2 days ago',
-        },
-      ];
-
-      setInvitations(mockInvitations);
-    } finally {
-      setIsLoadingInvitations(false);
     }
   };
 
@@ -465,6 +336,8 @@ export const AppProvider: React.FC<{children: ReactNode}> = ({children}) => {
       value={{
         user,
         setUser,
+        login,
+        logout,
         contests,
         addContest,
         loadContests,

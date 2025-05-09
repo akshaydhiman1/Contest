@@ -47,7 +47,7 @@ const UserSchema = new mongoose.Schema(
     },
     otp: {
       type: String,
-      select: false,
+      select: true, // Make sure OTP is selectable
     },
     contests: [
       {

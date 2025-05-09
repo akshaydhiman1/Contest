@@ -35,9 +35,21 @@ router.post('/verify-otp', async (req, res) => {
     // Check if OTP matches
     if (user.otp === otp) {
       console.log('OTP verified successfully');
+      // Update user verification status
+      user.isVerified = true;
+      await user.save();
+      
       return res.status(200).json({
         success: true,
-        message: 'OTP verified successfully'
+        message: 'OTP verified successfully',
+        user: {
+          _id: user._id,
+          username: user.username,
+          avatar: user.avatar,
+          phone: user.phone,
+          email: user.email,
+          isVerified: user.isVerified
+        }
       });
     } else {
       console.log('Invalid OTP provided');
@@ -70,14 +82,15 @@ router.post('/verify-phone', async (req, res) => {
 
     if (user) {
       // For testing, generate a hardcoded OTP
-      user.otp = '123456';
+      const testOTP = '123456';
+      user.otp = testOTP;
       await user.save();
       console.log('Set OTP for user:', user.otp);
       
       return res.status(200).json({
         success: true,
         message: 'Phone number exists',
-        otp: user.otp
+        otp: testOTP // Send OTP in response for testing
       });
     } else {
       console.log('Phone number not found in database');

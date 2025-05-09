@@ -5,6 +5,7 @@ import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {RootStackParamList} from '../App';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import {useAppContext} from '../context/AppContext';
 import {
   colors,
   typography,
@@ -23,6 +24,7 @@ const OTPScreen = ({route, navigation}: Props) => {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [testOTP, setTestOTP] = useState<string | null>(null);
+  const {login} = useAppContext();
 
   useEffect(() => {
     const fetchOTP = async () => {
@@ -38,8 +40,10 @@ const OTPScreen = ({route, navigation}: Props) => {
           (user: any) => user.phone === phoneNumber,
         );
         if (user) {
+          console.log('Found user:', user);
           setTestOTP(user.otp);
         } else {
+          console.log('User not found in response data');
           setError('User not found.');
         }
       } catch (err) {
@@ -53,7 +57,7 @@ const OTPScreen = ({route, navigation}: Props) => {
 
   const handleVerifyOTP = async () => {
     try {
-      console.log('Verifying OTP for phone:', phoneNumber);
+      console.log('Verifying OTP - Phone:', phoneNumber, 'OTP:', otp);
       const response = await axios.post(
         `${API_BASE_URL}/api/users/verify-otp`,
         {
@@ -70,13 +74,33 @@ const OTPScreen = ({route, navigation}: Props) => {
 
       if (response.data.success) {
         setError(null);
+        // Set user state with the verified user data
+        const userData = {
+          id: response.data.user._id,
+          username: response.data.user.username,
+          avatar: response.data.user.avatar,
+          phone: response.data.user.phone,
+          email: response.data.user.email,
+          isVerified: response.data.user.isVerified,
+        };
+        console.log('Setting user data:', userData);
+        login(userData);
         navigation.replace('Main');
       } else {
-        setError(response.data.message);
+        console.log('OTP verification failed:', response.data.message);
+        setError(response.data.message || 'Verification failed');
       }
     } catch (err: any) {
       console.error('Error verifying OTP:', err);
-      setError(err.response?.data?.message || 'Failed to verify OTP. Please try again later.');
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
+      setError(
+        err.response?.data?.message || 
+        'Failed to verify OTP. Please try again later.'
+      );
     }
   };
 

@@ -11,6 +11,12 @@ import {
   Platform
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useAppContext } from '../../context/AppContext';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../App';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 interface UserProfile {
   name: string;
@@ -90,9 +96,11 @@ const initialSettings: Setting[] = [
 ];
 
 const ProfileTab = () => {
+  const { user, logout } = useAppContext();
   const [profile, setProfile] = useState<UserProfile>(sampleProfile);
   const [settings, setSettings] = useState<Setting[]>(initialSettings);
   const [activeSection, setActiveSection] = useState<'profile' | 'settings'>('profile');
+  const navigation = useNavigation<NavigationProp>();
 
   const handleToggleSetting = (id: string) => {
     setSettings(settings.map(setting => 
@@ -109,7 +117,18 @@ const ProfileTab = () => {
         'Are you sure you want to logout?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Logout', style: 'destructive', onPress: () => {} }
+          { 
+            text: 'Logout', 
+            style: 'destructive', 
+            onPress: () => {
+              logout();
+              // Navigate to login screen
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Home' }],
+              });
+            }
+          }
         ]
       );
     } else {
