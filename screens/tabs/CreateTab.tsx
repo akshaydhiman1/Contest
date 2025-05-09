@@ -8,7 +8,7 @@ import {
   ScrollView,
   Alert,
   Platform, 
-  Image,
+  Image,1
   FlatList,
   KeyboardAvoidingView,
   ActivityIndicator,
